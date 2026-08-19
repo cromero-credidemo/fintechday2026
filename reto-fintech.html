@@ -212,6 +212,7 @@
       <div class="row" style="margin-top:18px">
         <button id="btnAbrir" class="btn">Abrir formulario (20 min)</button>
         <button id="btnCerrar" class="btn ghost">Cerrar ahora</button>
+        <button id="btnBorrar" class="btn ghost">Borrar todas las respuestas</button>
       </div>
       <div class="msg" id="msgAdmin"></div>
     </div>
@@ -501,6 +502,22 @@
         : "Formulario cerrado. Ya podés girar la tómbola.";
       pintarEstado();
     }catch(e){ $("msgAdmin").textContent = "No se pudo contactar el servidor. Revisá el endpoint y tu conexión."; }
+  }
+
+  async function borrarTodo(){
+    if(!window.confirm("Se borrarán TODAS las respuestas de la hoja de cálculo. Esta acción no se puede deshacer.\n\n¿Continuar?")) return;
+    if(!window.confirm("Confirmá una vez más: se elimina todo el registro de participantes.")) return;
+    $("msgAdmin").textContent = "Borrando…";
+    try{
+      await api({ action:"reset" }, { pin:PIN });
+      datos.servidor = []; datos.extra = [];
+      sorteo.ganadores = {}; sorteo.fuera = {}; sorteo.candidato = null;
+      $("winners").innerHTML = ""; $("candidato").classList.add("hide");
+      pintarPremios(); prepararRueda();
+      await refrescar();
+      $("msgAdmin").textContent = "Respuestas borradas. La ventana quedó cerrada: abrila de nuevo cuando empiece el evento.";
+      pintarEstado();
+    }catch(e){ $("msgAdmin").textContent = "No se pudo borrar. Revisá la conexión."; }
   }
 
   async function refrescar(){
@@ -796,6 +813,7 @@
   $("btnPanel").onclick = abrirPanel;
   $("btnAbrir").onclick = function(){ control("abrir"); };
   $("btnCerrar").onclick = function(){ control("cerrar"); };
+  $("btnBorrar").onclick = borrarTodo;
   $("btnRefrescar").onclick = refrescar;
   $("btnCSV").onclick = descargarCSV;
   $("btnSubir").onclick = function(){ $("fileIn").click(); };
