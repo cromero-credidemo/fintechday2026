@@ -665,6 +665,11 @@
     return azar(lista.filter(function(r){ return r.fallas === maxF; }));
   }
 
+  function dniCorto(g){
+    var d = String(g.dni || "").replace(/[^0-9]/g,"");
+    return d.length >= 4 ? "DNI ···" + d.slice(-4) : "";
+  }
+
   function detalle(premio, g){
     if(premio === "puntaje")   return g.aciertos + " aciertos en " + g.segundos + "s";
     if(premio === "velocidad") return g.aciertos + " aciertos en " + g.segundos + "s · " + (g.aciertos/Math.max(1,g.segundos)*60).toFixed(1) + " por minuto";
@@ -769,7 +774,7 @@
       sorteo.candidato = g;
       $("candPremio").textContent = premioActual().nombre;
       $("candNombre").textContent = g.nombre;
-      $("candDetalle").textContent = (g.area || "—") + " · " + detalle(sorteo.premio, g) + (g.telefono ? " · tel " + g.telefono : "");
+      $("candDetalle").textContent = [g.area || "—", detalle(sorteo.premio, g), dniCorto(g)].filter(Boolean).join(" · ");
       $("candidato").classList.remove("hide");
     }, lento ? 400 : 5100);
   }
@@ -782,7 +787,7 @@
       var d = document.createElement("div");
       d.className = "winner";
       d.innerHTML = '<div class="pz">' + esc(p.nombre) + '</div><div class="nm">' + esc(g.nombre) + '</div>' +
-                    '<div class="mt">' + esc(g.area || "—") + ' · ' + esc(detalle(p.id, g)) + '</div>';
+                    '<div class="mt">' + esc([g.area || "—", detalle(p.id, g), dniCorto(g)].filter(Boolean).join(" · ")) + '</div>';
       var q = document.createElement("button");
       q.className = "quitar"; q.textContent = "Quitar";
       q.onclick = function(){ delete sorteo.ganadores[p.id]; pintarGanadores(); pintarPremios(); prepararRueda(); };
