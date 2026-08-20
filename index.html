@@ -134,7 +134,7 @@
     <div>
       <div class="eyebrow">Dinámica de participantes</div>
       <h1>Reto del Journey del Crédito</h1>
-      <p class="sub">5 preguntas sobre el recorrido del crédito retail. La ventana dura 20 minutos.</p>
+      <p class="sub">5 preguntas sobre el recorrido del crédito retail.</p>
     </div>
     <div id="estadoPill" class="pill">Verificando…</div>
   </div>
@@ -162,12 +162,12 @@
         <div class="qtext" id="qText"></div>
       </div>
       <div style="text-align:right">
-        <div class="clock" id="qClock">20:00</div>
-        <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--gris);font-weight:800;margin-top:4px">Cierra en</div>
+        <div class="clock" id="qClock">00:00</div>
+        <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--gris);font-weight:800;margin-top:4px">Tu tiempo</div>
       </div>
     </div>
     <div id="qOpts"></div>
-    <div class="timebar"><i id="qBar" style="width:100%"></i></div>
+    <div class="timebar"><i id="qBar" style="width:20%"></i></div>
     <div class="pips" id="qPips"></div>
     <div class="foot">
       <span class="msg" id="msgQuiz"></span>
@@ -204,13 +204,13 @@
 
     <div id="tabCtrl">
       <h2>Control de la ventana</h2>
-      <p class="sub">Al abrir, el formulario acepta respuestas durante 20 minutos y se cierra solo.</p>
+      <p class="sub">El formulario acepta respuestas hasta que lo cierres. Cerralo antes de girar la tómbola.</p>
       <div class="row" style="margin-top:16px">
-        <div class="stat"><b id="admRestante">--:--</b><span>Tiempo restante</span></div>
+        <div class="stat"><b id="admRestante">—</b><span>Estado</span></div>
         <div class="stat"><b id="admParticipantes">0</b><span>Participantes</span></div>
       </div>
       <div class="row" style="margin-top:18px">
-        <button id="btnAbrir" class="btn">Abrir formulario (20 min)</button>
+        <button id="btnAbrir" class="btn">Abrir formulario</button>
         <button id="btnCerrar" class="btn ghost">Cerrar ahora</button>
         <button id="btnBorrar" class="btn ghost">Borrar todas las respuestas</button>
       </div>
@@ -294,7 +294,6 @@
   var PIN = "4981";       // Clave del panel del organizador
   /* =============================================================== */
 
-  var DURACION_MIN = 20;
 
   var PREGUNTAS = [
     { q:"Antes de construir la ficha de crédito, ¿qué valida CREDIDEMO en la etapa de cumplimiento?",
@@ -332,10 +331,7 @@
     return await r.json();
   }
   function ahora(){ return Date.now() + st.skew; }
-  function restante(cfg){
-    if(!cfg || !cfg.abierto || cfg.cerrado) return 0;
-    return Math.max(0, cfg.fin - ahora());
-  }
+  function estaAbierto(cfg){ return !!(cfg && cfg.abierto && !cfg.cerrado); }
   function mmss(ms){
     var s = Math.max(0, Math.floor(ms/1000));
     return String(Math.floor(s/60)).padStart(2,"0") + ":" + String(s%60).padStart(2,"0");
@@ -352,11 +348,11 @@
   }
 
   async function pintarEstado(){
-    var cfg = await traerCfg(), pill = $("estadoPill"), r = restante(cfg);
+    var cfg = await traerCfg(), pill = $("estadoPill");
     if(!ENDPOINT){ pill.className = "pill off"; pill.textContent = "Falta configurar el endpoint"; return cfg; }
     if(!cfg){ pill.className = "pill"; pill.textContent = "Sin conexión"; return cfg; }
     if(!cfg.abierto){ pill.className = "pill"; pill.textContent = "Aún no abre"; }
-    else if(r > 0){ pill.className = "pill live"; pill.textContent = "Abierto · " + mmss(r); }
+    else if(estaAbierto(cfg)){ pill.className = "pill live"; pill.textContent = "Abierto"; }
     else { pill.className = "pill off"; pill.textContent = "Cerrado"; }
     return cfg;
   }
@@ -371,7 +367,7 @@
     var cfg = await pintarEstado();
     if(!cfg){ $("msgReg").textContent = "No hay conexión con el servidor del evento. Revisá tu internet e intentá de nuevo."; return; }
     if(!cfg.abierto){ $("msgReg").textContent = "El formulario todavía no abre. Esperá la señal del organizador."; return; }
-    if(restante(cfg) <= 0){ $("msgReg").textContent = "La ventana de 20 minutos ya cerró."; return; }
+    if(!estaAbierto(cfg)){ $("msgReg").textContent = "El formulario ya está cerrado."; return; }
 
     st.nombre = nombre; st.area = area || "—";
     st.idx = 0; st.resp = []; st.t0 = Date.now(); st.enviado = false;
@@ -407,13 +403,15 @@
 
   function arrancarReloj(){
     clearInterval(st.tick);
-    st.tick = setInterval(function(){
-      if(!st.cfg) return;
-      var r = restante(st.cfg), total = DURACION_MIN*60000, c = $("qClock");
-      c.textContent = mmss(r);
-      c.className = "clock" + (r < 60000 ? " danger" : (r < 300000 ? " warn" : ""));
-      $("qBar").style.width = Math.max(0,(r/total)*100) + "%";
-      if(r <= 0 && !st.enviado) enviar(true);
+    var pasos = 0;
+    st.tick = setInterval(async function(){
+      $("qClock").textContent = mmss(Date.now() - st.t0);
+      $("qBar").style.width = (((st.idx+1)/PREGUNTAS.length)*100) + "%";
+      pasos++;
+      if(pasos % 20 === 0){                      // cada 20s revisa si el organizador cerró
+        var cfg = await traerCfg();
+        if(cfg && !estaAbierto(cfg) && !st.enviado) enviar(true);
+      }
     }, 1000);
   }
 
@@ -449,7 +447,7 @@
     $("finFallas").textContent = reg.fallas;
     $("finTiempo").textContent = reg.segundos + "s";
     if(porTiempo){
-      $("finTitulo").textContent = "Se acabó el tiempo";
+      $("finTitulo").textContent = "Se cerró la ronda";
       $("finSub").textContent = "Enviamos lo que alcanzaste a responder. Igual entrás a la tómbola.";
     }
     try{ localStorage.setItem("fd26_hecho", "1"); }catch(e){}
@@ -476,7 +474,7 @@
     clearInterval(st.poll);
     st.poll = setInterval(async function(){
       await traerCfg();
-      $("admRestante").textContent = mmss(restante(st.cfg));
+      $("admRestante").textContent = st.cfg ? (st.cfg.abierto ? (estaAbierto(st.cfg) ? "Abierto" : "Cerrado") : "Sin abrir") : "—";
     }, 3000);
   }
 
@@ -495,10 +493,10 @@
   async function control(accion){
     $("msgAdmin").textContent = "Enviando…";
     try{
-      await api({ action:accion }, { pin:PIN, duracionMin:DURACION_MIN });
+      await api({ action:accion }, { pin:PIN });
       await traerCfg();
       $("msgAdmin").textContent = (accion === "abrir")
-        ? "Formulario abierto. Cierra automáticamente en " + DURACION_MIN + " minutos."
+        ? "Formulario abierto. Queda recibiendo respuestas hasta que le des Cerrar ahora."
         : "Formulario cerrado. Ya podés girar la tómbola.";
       pintarEstado();
     }catch(e){ $("msgAdmin").textContent = "No se pudo contactar el servidor. Revisá el endpoint y tu conexión."; }
@@ -515,7 +513,7 @@
       $("winners").innerHTML = ""; $("candidato").classList.add("hide");
       pintarPremios(); prepararRueda();
       await refrescar();
-      $("msgAdmin").textContent = "Respuestas borradas. La ventana quedó cerrada: abrila de nuevo cuando empiece el evento.";
+      $("msgAdmin").textContent = "Respuestas borradas. El formulario quedó cerrado: abrilo de nuevo cuando empiece el evento.";
       pintarEstado();
     }catch(e){ $("msgAdmin").textContent = "No se pudo borrar. Revisá la conexión."; }
   }
