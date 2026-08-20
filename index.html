@@ -142,9 +142,13 @@
   <!-- REGISTRO -->
   <div id="scRegistro" class="card">
     <h2>Registro de participante</h2>
-    <p class="sub">Tu nombre se usa para la tómbola de premios al cierre de la ventana.</p>
+    <p class="sub">Tus datos se usan únicamente para identificarte y entregarte el premio si resultás ganador.</p>
     <label for="fNombre">Nombre completo</label>
     <input id="fNombre" type="text" placeholder="Nombre y apellido" autocomplete="off" maxlength="60">
+    <label for="fDni">Número de identidad (DNI)</label>
+    <input id="fDni" type="text" inputmode="numeric" placeholder="0801199012345" autocomplete="off" maxlength="20">
+    <label for="fTel">Teléfono</label>
+    <input id="fTel" type="text" inputmode="tel" placeholder="9999-9999" autocomplete="off" maxlength="20">
     <label for="fArea">Empresa o área</label>
     <input id="fArea" type="text" placeholder="Ej. CREDIDEMO · Operaciones" autocomplete="off" maxlength="60">
     <div class="row" style="margin-top:22px">
@@ -230,7 +234,7 @@
       </div>
       <div class="scroll" style="margin-top:12px">
         <table>
-          <thead><tr><th>#</th><th>Participante</th><th>Empresa / área</th><th>Aciertos</th><th>Fallas</th><th>Tiempo</th><th>Origen</th></tr></thead>
+          <thead><tr><th>#</th><th>Participante</th><th>DNI</th><th>Teléfono</th><th>Empresa / área</th><th>Aciertos</th><th>Fallas</th><th>Tiempo</th></tr></thead>
           <tbody id="tblBody"></tbody>
         </table>
       </div>
@@ -361,7 +365,10 @@
   /* ---------- participante ---------- */
   async function iniciar(){
     var nombre = $("fNombre").value.trim(), area = $("fArea").value.trim();
+    var dni = $("fDni").value.replace(/[^0-9]/g,""), tel = $("fTel").value.replace(/[^0-9]/g,"");
     if(nombre.length < 3){ $("msgReg").textContent = "Escribe tu nombre completo para continuar."; return; }
+    if(dni.length < 13){ $("msgReg").textContent = "El DNI debe tener 13 dígitos."; return; }
+    if(tel.length < 8){ $("msgReg").textContent = "El teléfono debe tener al menos 8 dígitos."; return; }
 
     $("msgReg").textContent = "Verificando…";
     var cfg = await pintarEstado();
@@ -374,7 +381,7 @@
       }
     }catch(e){}
 
-    st.nombre = nombre; st.area = area || "—";
+    st.nombre = nombre; st.area = area || "—"; st.dni = dni; st.tel = tel;
     st.idx = 0; st.resp = []; st.t0 = Date.now(); st.enviado = false;
     $("msgReg").textContent = "";
     $("scRegistro").classList.add("hide"); $("scQuiz").classList.remove("hide");
@@ -421,7 +428,7 @@
   }
 
   function codificar(reg){
-    var s = [reg.nombre, reg.area, reg.aciertos, reg.fallas, reg.segundos].join("~");
+    var s = [reg.nombre, reg.area, reg.aciertos, reg.fallas, reg.segundos, reg.dni || "", reg.telefono || ""].join("~");
     return "FD26." + btoa(unescape(encodeURIComponent(s))).replace(/=+$/,"");
   }
   function decodificar(cod){
@@ -431,7 +438,7 @@
     if(p.length < 5) throw new Error("formato");
     return { id:"cod"+Math.random().toString(36).slice(2), nombre:p[0], area:p[1],
              aciertos:parseInt(p[2],10), fallas:parseInt(p[3],10), segundos:parseInt(p[4],10),
-             ts:Date.now(), origen:"código" };
+             dni:p[5] || "", telefono:p[6] || "", ts:Date.now(), origen:"código" };
   }
 
   async function enviar(porTiempo){
@@ -441,7 +448,7 @@
     PREGUNTAS.forEach(function(p,i){ if(st.resp[i] === p.c) aciertos++; });
     var reg = {
       id: "r" + Date.now() + Math.floor(Math.random()*9999),
-      nombre: st.nombre, area: st.area, aciertos: aciertos,
+      nombre: st.nombre, dni: st.dni, telefono: st.tel, area: st.area, aciertos: aciertos,
       fallas: PREGUNTAS.length - aciertos,
       segundos: Math.round((Date.now() - st.t0)/1000),
       ts: Date.now(), origen: "formulario"
@@ -535,9 +542,9 @@
     var tb = $("tblBody"); tb.innerHTML = "";
     t.forEach(function(r,i){
       var tr = document.createElement("tr");
-      tr.innerHTML = "<td>"+(i+1)+"</td><td>"+esc(r.nombre)+"</td><td>"+esc(r.area||"—")+"</td>"+
-                     "<td>"+r.aciertos+"</td><td>"+r.fallas+"</td><td>"+r.segundos+"s</td>"+
-                     "<td><span class='pill'>"+esc(r.origen||"formulario")+"</span></td>";
+      tr.innerHTML = "<td>"+(i+1)+"</td><td>"+esc(r.nombre)+"</td><td>"+esc(r.dni||"—")+"</td>"+
+                     "<td>"+esc(r.telefono||"—")+"</td><td>"+esc(r.area||"—")+"</td>"+
+                     "<td>"+r.aciertos+"</td><td>"+r.fallas+"</td><td>"+r.segundos+"s</td>";
       tb.appendChild(tr);
     });
     $("admParticipantes").textContent = t.length;
@@ -570,8 +577,8 @@
   function descargarCSV(){
     var t = todos();
     if(!t.length){ $("msgRes").textContent = "No hay resultados que descargar."; return; }
-    var lin = ["id,nombre,area,aciertos,fallas,segundos,ts,origen"];
-    t.forEach(function(r){ lin.push([r.id, q(r.nombre), q(r.area), r.aciertos, r.fallas, r.segundos, r.ts, r.origen||""].join(",")); });
+    var lin = ["id,nombre,dni,telefono,area,aciertos,fallas,segundos,origen"];
+    t.forEach(function(r){ lin.push([r.id, q(r.nombre), q(r.dni||""), q(r.telefono||""), q(r.area), r.aciertos, r.fallas, r.segundos, r.origen||""].join(",")); });
     var a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob(["\uFEFF"+lin.join("\n")], {type:"text/csv;charset=utf-8"}));
     a.download = "resultados_fintechday2026.csv"; a.click();
@@ -603,12 +610,14 @@
           var lineas = txt.split(/\r?\n/).filter(function(l){ return l.trim(); });
           var cab = lineas[0].toLowerCase().split(",").map(function(h){ return h.replace(/"/g,"").trim(); });
           var iN = idx(cab,["nombre","participante","name"]), iA = idx(cab,["area","empresa","área"]),
+              iD = idx(cab,["dni","identidad","cedula","cédula"]), iT = idx(cab,["telefono","teléfono","celular","tel"]),
               iAc = idx(cab,["aciertos","correctas","puntos"]), iF = idx(cab,["fallas","errores","incorrectas"]),
               iS = idx(cab,["segundos","tiempo","seconds"]);
           for(var i=1;i<lineas.length;i++){
             var c = partirCSV(lineas[i]);
             var ac = parseInt(c[iAc],10); if(isNaN(ac)) continue;
             regs.push({ id:"up"+i+Date.now(), nombre:(c[iN]||"Participante "+i).trim(), area:(c[iA]||"—").trim(),
+                        dni:(iD>=0 ? (c[iD]||"").trim() : ""), telefono:(iT>=0 ? (c[iT]||"").trim() : ""),
                         aciertos:ac, fallas:parseInt(c[iF],10), segundos:parseInt(c[iS],10)||0, ts:Date.now(), origen:"archivo" });
           }
         }
@@ -760,7 +769,7 @@
       sorteo.candidato = g;
       $("candPremio").textContent = premioActual().nombre;
       $("candNombre").textContent = g.nombre;
-      $("candDetalle").textContent = (g.area || "—") + " · " + detalle(sorteo.premio, g);
+      $("candDetalle").textContent = (g.area || "—") + " · " + detalle(sorteo.premio, g) + (g.telefono ? " · tel " + g.telefono : "");
       $("candidato").classList.remove("hide");
     }, lento ? 400 : 5100);
   }
