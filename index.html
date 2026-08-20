@@ -213,6 +213,7 @@
         <button id="btnAbrir" class="btn">Abrir formulario</button>
         <button id="btnCerrar" class="btn ghost">Cerrar ahora</button>
         <button id="btnBorrar" class="btn ghost">Borrar todas las respuestas</button>
+        <button id="btnLiberar" class="btn ghost">Liberar este dispositivo</button>
       </div>
       <div class="msg" id="msgAdmin"></div>
     </div>
@@ -361,13 +362,17 @@
   async function iniciar(){
     var nombre = $("fNombre").value.trim(), area = $("fArea").value.trim();
     if(nombre.length < 3){ $("msgReg").textContent = "Escribe tu nombre completo para continuar."; return; }
-    try{ if(localStorage.getItem("fd26_hecho")){ $("msgReg").textContent = "Este dispositivo ya registró respuestas."; return; } }catch(e){}
 
-    $("msgReg").textContent = "Verificando la ventana…";
+    $("msgReg").textContent = "Verificando…";
     var cfg = await pintarEstado();
     if(!cfg){ $("msgReg").textContent = "No hay conexión con el servidor del evento. Revisá tu internet e intentá de nuevo."; return; }
     if(!cfg.abierto){ $("msgReg").textContent = "El formulario todavía no abre. Esperá la señal del organizador."; return; }
     if(!estaAbierto(cfg)){ $("msgReg").textContent = "El formulario ya está cerrado."; return; }
+    try{
+      if(localStorage.getItem("fd26_hecho") === String(cfg.ronda || 0)){
+        $("msgReg").textContent = "Este dispositivo ya participó en esta ronda."; return;
+      }
+    }catch(e){}
 
     st.nombre = nombre; st.area = area || "—";
     st.idx = 0; st.resp = []; st.t0 = Date.now(); st.enviado = false;
@@ -450,7 +455,7 @@
       $("finTitulo").textContent = "Se cerró la ronda";
       $("finSub").textContent = "Enviamos lo que alcanzaste a responder. Igual entrás a la tómbola.";
     }
-    try{ localStorage.setItem("fd26_hecho", "1"); }catch(e){}
+    try{ localStorage.setItem("fd26_hecho", String((st.cfg && st.cfg.ronda) || 0)); }catch(e){}
 
     var ok = false;
     for(var intento = 0; intento < 2 && !ok; intento++){
@@ -513,7 +518,8 @@
       $("winners").innerHTML = ""; $("candidato").classList.add("hide");
       pintarPremios(); prepararRueda();
       await refrescar();
-      $("msgAdmin").textContent = "Respuestas borradas. El formulario quedó cerrado: abrilo de nuevo cuando empiece el evento.";
+      try{ localStorage.removeItem("fd26_hecho"); }catch(e){}
+      $("msgAdmin").textContent = "Respuestas borradas y ronda nueva: todos los dispositivos pueden participar otra vez. Abrí el formulario cuando empiece el evento.";
       pintarEstado();
     }catch(e){ $("msgAdmin").textContent = "No se pudo borrar. Revisá la conexión."; }
   }
@@ -812,6 +818,10 @@
   $("btnAbrir").onclick = function(){ control("abrir"); };
   $("btnCerrar").onclick = function(){ control("cerrar"); };
   $("btnBorrar").onclick = borrarTodo;
+  $("btnLiberar").onclick = function(){
+    try{ localStorage.removeItem("fd26_hecho"); }catch(e){}
+    $("msgAdmin").textContent = "Listo: este navegador puede volver a responder.";
+  };
   $("btnRefrescar").onclick = refrescar;
   $("btnCSV").onclick = descargarCSV;
   $("btnSubir").onclick = function(){ $("fileIn").click(); };
